@@ -15,7 +15,6 @@ class AuthController extends Controller
 {
     public function login(LoginRequest $request): UserResource
     {
-        // Sanctum chỉ bật session cho request có Origin/Referer thuộc SANCTUM_STATEFUL_DOMAINS; thiếu thì trả 400 thay vì lỗi 500.
         if (! $request->hasSession()) {
             throw new BadRequestHttpException('Login is only available to the SPA (stateful domain).');
         }
@@ -26,7 +25,6 @@ class AuthController extends Controller
             ]);
         }
 
-        // Chống session fixation: đổi session id ngay sau khi đăng nhập.
         $request->session()->regenerate();
 
         return new UserResource(Auth::guard('web')->user());

@@ -14,13 +14,11 @@ return new class extends Migration
             $table->string('title');
             $table->text('description')->nullable();
             $table->enum('status', TaskStatus::values())->default(TaskStatus::Todo->value);
-            // Chặn xoá user còn task để không mất dữ liệu task một cách ngầm định.
             $table->foreignId('assigned_to')->constrained('users')->restrictOnDelete();
             $table->date('due_date')->nullable();
             $table->timestamps();
             $table->softDeletes();
 
-            // Phục vụ query phổ biến nhất: user thường lọc task của mình theo status.
             $table->index(['assigned_to', 'status']);
             $table->index('status');
             $table->index('due_date');

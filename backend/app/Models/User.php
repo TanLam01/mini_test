@@ -16,8 +16,6 @@ class User extends Authenticatable
     use HasApiTokens, HasFactory, Notifiable;
 
     /**
-     * `role` cố ý không mass-assignable để request không thể tự nâng quyền; chỉ gán tường minh.
-     *
      * @var list<string>
      */
     protected $fillable = [
