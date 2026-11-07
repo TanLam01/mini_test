@@ -5,7 +5,7 @@ Small internal task manager.
 | Layer    | Stack                                        |
 |----------|----------------------------------------------|
 | Backend  | Laravel 11, PHP 8.3, MySQL 8, Apache 2.4     |
-| Frontend | Vue 3 + Vuetify 3 + TypeScript (`frontend/`, in progress) |
+| Frontend | Vue 3, Vuetify 3, TypeScript, Vue Router, Pinia, axios (`frontend/`) |
 | Auth     | Laravel Sanctum SPA authentication (httpOnly session cookie + CSRF) |
 
 Written answers (performance, security, deployment) are in [ANSWERS.md](ANSWERS.md).
@@ -27,6 +27,11 @@ docker compose exec app php artisan migrate --seed
 - API base URL: `http://localhost:8000/api`
 - MySQL is exposed on `localhost:3307` (user `task` / password `secret`, database `task_manager`).
 - DB credentials are injected by `docker-compose.yml`, so they override whatever is in `.env`.
+- `backend/vendor` lives in a named Docker volume (`vendor`), not in the bind mount: on Docker Desktop
+  (Windows/macOS) each file access through a bind mount is ~50× slower, which made every Laravel request take
+  several seconds. Application code is still bind-mounted, so edits are picked up immediately. Run
+  `docker compose exec app composer install` after changing dependencies; a local `composer install` only
+  feeds your IDE.
 
 ### Seeded accounts
 
@@ -47,7 +52,66 @@ docker compose exec app ./vendor/bin/pint --test # Code style
 
 ---
 
-## 2. API
+## 2. Run the frontend
+
+Requirements: Node.js `^22.18` or `>=24.12` (see `frontend/package.json` → `engines`), the backend from step 1 running.
+
+```bash
+cd frontend
+cp .env.example .env.local   # VITE_API_URL=http://localhost:8000
+npm ci
+npm run dev                  # http://localhost:5173
+```
+
+> Open the app at **`http://localhost:5173`**, not `127.0.0.1:5173`: the session cookie is only sent when the SPA
+> and the API (`localhost:8000`) are on the same site.
+
+| Script | What it does |
+|--------|--------------|
+| `npm run dev` | Vite dev server (pinned to `localhost:5173`) |
+| `npm run build` | `vue-tsc` type check + production build into `dist/` |
+| `npm run test:unit` | Vitest (`npx vitest run` for a single run) |
+| `npm run lint` | oxlint + ESLint |
+| `npm run format` | Prettier |
+
+### Pages
+
+| Route | Access | What it shows |
+|-------|--------|---------------|
+| `/login` | guests only | Email + password form; server errors under the fields |
+| `/tasks` | logged in | Server-side paginated `v-data-table-server`, status filter, debounced title search, assignee filter (admin), colored status chips, create dialog, delete with confirmation |
+| `/tasks/:id` | logged in | Loads the task and edits it with the same `TaskForm` component; clear 403/404 states |
+
+Filters and pagination are mirrored in the URL (`/tasks?status=done&search=api&page=2`), so reloads and shared
+links keep the same view.
+
+### Structure
+
+```
+frontend/src
+├─ api/          axios instance (credentials, XSRF, 419 retry, 401 handling) + one module per resource
+├─ types/        API types mirroring the Laravel resources
+├─ stores/       Pinia: auth (current user), notify (snackbar)
+├─ router/       routes + auth guard (pure function, unit tested)
+├─ composables/  useAssignees (admin: GET /api/users, user: only themselves)
+├─ components/   TaskForm (create + edit), TaskStatusChip, ConfirmDialog
+└─ views/        LoginView, TasksView, TaskDetailView
+```
+
+### Auth flow in the SPA
+
+- `stores/auth.ts` keeps only the current user in memory — no token is stored anywhere in the browser.
+- On load the router guard calls `GET /api/me` once to restore the session from the httpOnly cookie.
+- `login()` calls `GET /sanctum/csrf-cookie`, then `POST /api/login`; axios sends cookies (`withCredentials`) and
+  copies `XSRF-TOKEN` into `X-XSRF-TOKEN` (`withXSRFToken`).
+- A `419` (expired CSRF token) refreshes the cookie and retries the request once; a `401` clears the user and
+  redirects to `/login?redirect=…` (only internal paths are accepted, to avoid an open redirect).
+- A regular user can only assign tasks to themselves, so the assignee select is read-only for them and
+  `GET /api/users` (admin-only) is never called.
+
+---
+
+## 3. API
 
 ### Authentication flow (Sanctum SPA mode)
 
@@ -146,7 +210,7 @@ With `APP_DEBUG=true` (local default) error bodies also include a stack trace; p
 
 ---
 
-## 3. Authorization rules
+## 4. Authorization rules
 
 | Action                          | admin | user |
 |---------------------------------|-------|------|
@@ -160,7 +224,7 @@ Implemented with `TaskPolicy` / `UserPolicy` (admin short-circuits in `TaskPolic
 
 ---
 
-## 4. Assumptions and decisions
+## 5. Assumptions and decisions
 
 - **"Own task" = task where `assigned_to` is the user.** The spec has no `created_by` column, so ownership follows the assignee.
 - **Soft delete** for tasks (`deleted_at`). Deleted tasks disappear from all endpoints (404) but stay recoverable in the database.

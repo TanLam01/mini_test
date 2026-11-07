@@ -9,14 +9,9 @@ class UpdateTaskRequest extends StoreTaskRequest
         return $this->user()->can('update', $this->route('task'));
     }
 
-    protected function prepareForValidation(): void
-    {
-        // Không kế thừa việc tự gán assigned_to của Store: update thiếu field này nghĩa là giữ nguyên người được giao.
-    }
+    protected function prepareForValidation(): void {}
 
     /**
-     * Cho phép cập nhật từng phần: field nào gửi lên mới được validate theo rule của Store.
-     *
      * @return array<string, mixed>
      */
     public function rules(): array
