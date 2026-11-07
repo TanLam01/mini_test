@@ -27,6 +27,11 @@ docker compose exec app php artisan migrate --seed
 - API base URL: `http://localhost:8000/api`
 - MySQL is exposed on `localhost:3307` (user `task` / password `secret`, database `task_manager`).
 - DB credentials are injected by `docker-compose.yml`, so they override whatever is in `.env`.
+- `backend/vendor` lives in a named Docker volume (`vendor`), not in the bind mount: on Docker Desktop
+  (Windows/macOS) each file access through a bind mount is ~50× slower, which made every Laravel request take
+  several seconds. Application code is still bind-mounted, so edits are picked up immediately. Run
+  `docker compose exec app composer install` after changing dependencies; a local `composer install` only
+  feeds your IDE.
 
 ### Seeded accounts
 
