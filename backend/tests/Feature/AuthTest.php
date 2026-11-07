@@ -11,31 +11,59 @@ class AuthTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_user_can_login_and_receive_token(): void
+    private const SPA_ORIGIN = 'http://localhost:5173';
+
+    public function test_csrf_cookie_endpoint_issues_xsrf_token(): void
+    {
+        $this->withHeader('Origin', self::SPA_ORIGIN)
+            ->get('/sanctum/csrf-cookie')
+            ->assertNoContent()
+            ->assertCookie('XSRF-TOKEN');
+    }
+
+    public function test_spa_can_login_with_session_cookie(): void
     {
         $user = User::factory()->create(['email' => 'jane@example.com']);
 
-        $this->postJson('/api/login', ['email' => 'jane@example.com', 'password' => 'password'])
+        $this->withHeader('Origin', self::SPA_ORIGIN)
+            ->postJson('/api/login', ['email' => 'jane@example.com', 'password' => 'password'])
             ->assertOk()
-            ->assertJsonStructure(['token', 'user' => ['id', 'name', 'email', 'role']])
-            ->assertJsonPath('user.id', $user->id)
-            ->assertJsonMissingPath('user.password');
+            ->assertJsonPath('data.id', $user->id)
+            ->assertJsonMissingPath('token')
+            ->assertJsonMissingPath('data.password');
+
+        $this->assertAuthenticatedAs($user, 'web');
     }
 
     public function test_login_fails_with_wrong_password(): void
     {
         User::factory()->create(['email' => 'jane@example.com']);
 
-        $this->postJson('/api/login', ['email' => 'jane@example.com', 'password' => 'wrong'])
+        $this->withHeader('Origin', self::SPA_ORIGIN)
+            ->postJson('/api/login', ['email' => 'jane@example.com', 'password' => 'wrong'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('email');
+
+        $this->assertGuest('web');
     }
 
     public function test_login_rejects_email_with_crlf(): void
     {
-        $this->postJson('/api/login', ['email' => "jane@example.com\r\nBcc: x@example.com", 'password' => 'password'])
+        $this->withHeader('Origin', self::SPA_ORIGIN)
+            ->postJson('/api/login', ['email' => "jane@example.com\r\nBcc: x@example.com", 'password' => 'password'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('email');
+    }
+
+    public function test_login_from_non_spa_origin_is_rejected(): void
+    {
+        User::factory()->create(['email' => 'jane@example.com']);
+
+        $this->withHeader('Origin', 'https://evil.example.com')
+            ->postJson('/api/login', ['email' => 'jane@example.com', 'password' => 'password'])
+            ->assertBadRequest();
+
+        $this->assertGuest('web');
     }
 
     public function test_me_returns_current_user(): void
@@ -49,14 +77,17 @@ class AuthTest extends TestCase
             ->assertJsonPath('data.role', 'admin');
     }
 
-    public function test_logout_revokes_current_token(): void
+    public function test_logout_ends_the_session(): void
     {
-        $user = User::factory()->create();
-        $token = $user->createToken('spa')->plainTextToken;
+        User::factory()->create(['email' => 'jane@example.com']);
 
-        $this->withToken($token)->postJson('/api/logout')->assertNoContent();
+        $this->withHeader('Origin', self::SPA_ORIGIN)
+            ->postJson('/api/login', ['email' => 'jane@example.com', 'password' => 'password'])
+            ->assertOk();
 
-        $this->assertDatabaseCount('personal_access_tokens', 0);
+        $this->withHeader('Origin', self::SPA_ORIGIN)->postJson('/api/logout')->assertNoContent();
+
+        $this->assertGuest('web');
     }
 
     public function test_protected_routes_require_authentication(): void
