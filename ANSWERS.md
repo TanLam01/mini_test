@@ -39,7 +39,62 @@
 
 ## 5.2 TypeScript / Vue 3
 
-To be answered together with the frontend part.
+### 1. Benefits of TypeScript in a Vue 3 SPA
+
+- **The API contract lives in one place.** `src/types/api.ts` mirrors the Laravel resources (`Task`, `User`,
+  `Paginated<T>`, `TaskStatus = 'todo' | 'in_progress' | 'done'`). If the backend renames a field, `vue-tsc` fails
+  the build at every usage instead of the UI silently rendering `undefined`.
+- **Type-checked templates.** With `<script setup lang="ts">` + `vue-tsc`, props, emits, slot props
+  (`#item.status="{ item }"` in `v-data-table-server` is typed as `Task`) and component usage are checked, so passing
+  a `string` where a `TaskStatus` is expected is a compile error.
+- **Safer refactoring.** Renaming a prop, a store action or an API function updates or breaks every caller
+  explicitly; the IDE can rename across `.ts` and `.vue` files.
+- **Self-documenting components.** `defineProps<…>()` / `defineEmits<…>()` show exactly what a component needs and
+  what it emits (`saved: [task: Task]`), with autocompletion for whoever reuses it.
+- **Fewer runtime bugs in edge cases**: union types and narrowing force handling of `null` (`due_date`,
+  `description`) and of API error shapes (`ValidationErrors`), and `noUncheckedIndexedAccess` makes array/record
+  lookups explicit.
+- **Better tooling for the whole team**: autocomplete for Pinia stores, router params (`RouteMeta` is augmented
+  with `requiresAuth` / `guestOnly`) and Vuetify component props.
+
+### 2. Strongly typed props with `<script setup lang="ts">`
+
+Excerpt from `frontend/src/components/TaskForm.vue` (the reusable create/edit form):
+
+```vue
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { Task, User } from '@/types/api'
+
+// Type-only declaration: no runtime `props: {...}` object; vue-tsc checks every <TaskForm ...> usage.
+const props = withDefaults(
+  defineProps<{
+    task?: Task | null // present → edit mode (PUT), absent → create mode (POST)
+    users: User[] // required
+    defaultAssigneeId?: number | null
+    lockAssignee?: boolean
+  }>(),
+  { task: null, defaultAssigneeId: null, lockAssignee: false },
+)
+
+// Typed events: emit('saved', 'oops') would be a compile error.
+const emit = defineEmits<{
+  saved: [task: Task]
+  cancel: []
+}>()
+
+const isEdit = computed(() => props.task !== null) // ComputedRef<boolean>
+</script>
+```
+
+Usage (a missing `users` or a wrong type fails `vue-tsc`):
+
+```vue
+<TaskForm :users="users" :default-assignee-id="auth.user?.id" @saved="onCreated" @cancel="createOpen = false" />
+```
+
+Two-way bound props are typed the same way with `defineModel<T>()`, e.g. `ConfirmDialog.vue`:
+`const open = defineModel<boolean>({ required: true })`.
 
 ## 6.1 Apache 2.4 & deployment (bonus)
 
