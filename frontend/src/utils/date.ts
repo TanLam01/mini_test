@@ -11,3 +11,38 @@ export function parseIsoDate(value: string | null | undefined): Date | null {
 
   return match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null
 }
+
+const dateFormatter = new Intl.DateTimeFormat('en', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+})
+const dateTimeFormatter = new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' })
+
+export function formatDate(value: string | null | undefined): string {
+  const date = parseIsoDate(value)
+
+  return date ? dateFormatter.format(date) : ''
+}
+
+export function formatDateTime(value: string | null | undefined): string {
+  return value ? dateTimeFormatter.format(new Date(value)) : ''
+}
+
+export type DueState = 'overdue' | 'today' | null
+
+export function dueState(
+  dueDate: string | null,
+  done: boolean,
+  today = toIsoDate(new Date()),
+): DueState {
+  if (!dueDate || done) {
+    return null
+  }
+
+  if (dueDate < today) {
+    return 'overdue'
+  }
+
+  return dueDate === today ? 'today' : null
+}

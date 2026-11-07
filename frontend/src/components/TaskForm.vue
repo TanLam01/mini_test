@@ -3,9 +3,11 @@ import { computed, reactive, ref, watch } from 'vue'
 import type { VForm } from 'vuetify/components'
 
 import { getErrorMessage, getValidationErrors } from '@/api/errors'
-import { createTask, updateTask } from '@/api/tasks'
-import type { Task, TaskPayload, User, ValidationErrors } from '@/types/api'
-import { parseIsoDate, toIsoDate } from '@/utils/date'
+import TaskStatusChip from '@/components/TaskStatusChip.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
+import { useCreateTask, useUpdateTask } from '@/queries/tasks'
+import type { Task, TaskPayload, TaskStatus, User, ValidationErrors } from '@/types/api'
+import { formatDate, parseIsoDate, toIsoDate } from '@/utils/date'
 import { TASK_STATUS_OPTIONS } from '@/utils/taskStatus'
 
 const props = withDefaults(
@@ -23,13 +25,16 @@ const emit = defineEmits<{
   cancel: []
 }>()
 
+const createTask = useCreateTask()
+const updateTask = useUpdateTask()
+
 const isEdit = computed(() => props.task !== null)
+const submitting = computed(() => createTask.isPending.value || updateTask.isPending.value)
 
 const formRef = ref<InstanceType<typeof VForm> | null>(null)
 const form = reactive<TaskPayload>(initialState())
 const fieldErrors = ref<ValidationErrors>({})
 const errorMessage = ref('')
-const submitting = ref(false)
 const datePickerOpen = ref(false)
 
 const rules = {
@@ -40,7 +45,7 @@ const rules = {
 }
 
 const assigneeItems = computed(() =>
-  props.users.map((user) => ({ value: user.id, title: user.name })),
+  props.users.map((user) => ({ value: user.id, title: user.name, raw: user })),
 )
 
 const dueDate = computed<Date | null>({
@@ -80,14 +85,15 @@ async function submit(): Promise<void> {
     return
   }
 
-  submitting.value = true
   fieldErrors.value = {}
   errorMessage.value = ''
 
   const payload: TaskPayload = { ...form, description: form.description?.trim() || null }
 
   try {
-    const saved = props.task ? await updateTask(props.task.id, payload) : await createTask(payload)
+    const saved = props.task
+      ? await updateTask.mutateAsync({ id: props.task.id, payload })
+      : await createTask.mutateAsync(payload)
     emit('saved', saved)
   } catch (error) {
     const validation = getValidationErrors(error)
@@ -97,14 +103,12 @@ async function submit(): Promise<void> {
     } else {
       errorMessage.value = getErrorMessage(error, 'Could not save the task.')
     }
-  } finally {
-    submitting.value = false
   }
 }
 </script>
 
 <template>
-  <v-form ref="formRef" @submit.prevent="submit">
+  <v-form ref="formRef" class="space-y-2" @submit.prevent="submit">
     <v-alert
       v-if="errorMessage"
       type="error"
@@ -118,6 +122,7 @@ async function submit(): Promise<void> {
     <v-text-field
       v-model="form.title"
       label="Title *"
+      placeholder="What needs to be done?"
       counter="255"
       :rules="[rules.required, rules.max(255)]"
       :error-messages="fieldErrors.title"
@@ -128,62 +133,81 @@ async function submit(): Promise<void> {
     <v-textarea
       v-model="form.description"
       label="Description"
+      placeholder="Add more details (optional)"
       rows="3"
       auto-grow
-      class="mt-2"
       :rules="[rules.max(5000)]"
       :error-messages="fieldErrors.description"
       @update:model-value="clearFieldError('description')"
     />
 
-    <v-row class="mt-0">
-      <v-col cols="12" sm="6">
-        <v-select
-          v-model="form.status"
-          label="Status *"
-          :items="TASK_STATUS_OPTIONS"
-          :rules="[rules.required]"
-          :error-messages="fieldErrors.status"
-          data-test="status"
-          @update:model-value="clearFieldError('status')"
-        />
-      </v-col>
-      <v-col cols="12" sm="6">
-        <v-select
-          v-model="form.assigned_to"
-          label="Assignee *"
-          :items="assigneeItems"
-          :readonly="lockAssignee"
-          :hint="lockAssignee ? 'You can only assign tasks to yourself.' : undefined"
-          :persistent-hint="lockAssignee"
-          :rules="[rules.required]"
-          :error-messages="fieldErrors.assigned_to"
-          data-test="assignee"
-          @update:model-value="clearFieldError('assigned_to')"
-        />
-      </v-col>
-    </v-row>
+    <div class="grid gap-x-4 gap-y-2 sm:grid-cols-2">
+      <v-select
+        v-model="form.status"
+        label="Status *"
+        :items="TASK_STATUS_OPTIONS"
+        :rules="[rules.required]"
+        :error-messages="fieldErrors.status"
+        data-test="status"
+        @update:model-value="clearFieldError('status')"
+      >
+        <template #selection="{ item }">
+          <TaskStatusChip :status="item.value as TaskStatus" />
+        </template>
+        <template #item="{ props: itemProps, item }">
+          <v-list-item v-bind="itemProps" :title="undefined">
+            <TaskStatusChip :status="item.value as TaskStatus" />
+          </v-list-item>
+        </template>
+      </v-select>
+
+      <v-select
+        v-model="form.assigned_to"
+        label="Assignee *"
+        :items="assigneeItems"
+        :readonly="lockAssignee"
+        :hint="lockAssignee ? 'You can only assign tasks to yourself.' : undefined"
+        :persistent-hint="lockAssignee"
+        :rules="[rules.required]"
+        :error-messages="fieldErrors.assigned_to"
+        data-test="assignee"
+        @update:model-value="clearFieldError('assigned_to')"
+      >
+        <template #selection="{ item }">
+          <div class="flex items-center gap-2">
+            <UserAvatar :name="item.title" :size="22" />
+            <span>{{ item.title }}</span>
+          </div>
+        </template>
+        <template #item="{ props: itemProps, item }">
+          <v-list-item v-bind="itemProps">
+            <template #prepend>
+              <UserAvatar :name="item.title" :size="28" class="mr-3" />
+            </template>
+          </v-list-item>
+        </template>
+      </v-select>
+    </div>
 
     <v-menu v-model="datePickerOpen" :close-on-content-click="false" location="bottom start">
       <template #activator="{ props: activatorProps }">
         <v-text-field
           v-bind="activatorProps"
-          :model-value="form.due_date"
+          :model-value="formatDate(form.due_date)"
           label="Due date"
-          placeholder="YYYY-MM-DD"
-          prepend-inner-icon="mdi-calendar"
+          placeholder="No due date"
+          prepend-inner-icon="mdi-calendar-blank-outline"
           readonly
           clearable
-          class="mt-2"
           :error-messages="fieldErrors.due_date"
           data-test="due-date"
           @click:clear="form.due_date = null"
         />
       </template>
-      <v-date-picker v-model="dueDate" show-adjacent-months hide-header />
+      <v-date-picker v-model="dueDate" color="primary" show-adjacent-months hide-header />
     </v-menu>
 
-    <div class="d-flex justify-end ga-2 mt-4">
+    <div class="flex justify-end gap-2 pt-2">
       <v-btn variant="text" :disabled="submitting" @click="emit('cancel')">Cancel</v-btn>
       <v-btn type="submit" color="primary" :loading="submitting" data-test="submit">
         {{ isEdit ? 'Save changes' : 'Create task' }}

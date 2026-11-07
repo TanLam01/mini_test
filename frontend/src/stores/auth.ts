@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 
 import * as authApi from '@/api/auth'
+import { queryClient } from '@/plugins/query'
 import type { LoginCredentials, User } from '@/types/api'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -30,7 +31,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function login(credentials: LoginCredentials): Promise<void> {
-    user.value = await authApi.login(credentials)
+    const loggedIn = await authApi.login(credentials)
+    queryClient.clear()
+    user.value = loggedIn
     initialized.value = true
   }
 
@@ -44,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   function clear(): void {
     user.value = null
+    queryClient.clear()
   }
 
   return { user, initialized, isAuthenticated, isAdmin, init, login, logout, clear }

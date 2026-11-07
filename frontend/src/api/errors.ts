@@ -1,10 +1,6 @@
-import { isAxiosError, isCancel } from 'axios'
+import { isAxiosError } from 'axios'
 
 import type { ValidationErrors } from '@/types/api'
-
-export function isCanceled(error: unknown): boolean {
-  return isCancel(error)
-}
 
 export function getStatus(error: unknown): number | undefined {
   return isAxiosError(error) ? error.response?.status : undefined
