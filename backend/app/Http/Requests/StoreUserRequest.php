@@ -22,7 +22,6 @@ class StoreUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            // not_regex: xem lý do ở LoginRequest (CRLF injection trong rule `email` của Laravel 11).
             'email' => ['required', 'string', 'email', 'not_regex:/[\r\n]/', 'max:255', 'unique:users,email'],
             'password' => ['required', 'string', Password::min(8)],
             'role' => ['required', Rule::enum(UserRole::class)],

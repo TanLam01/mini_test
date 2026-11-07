@@ -70,7 +70,6 @@ class Task extends Model
         $query
             ->when($filters['status'] ?? null, fn (Builder $q, string $status) => $q->where('status', $status))
             ->when($filters['assigned_to'] ?? null, fn (Builder $q, int|string $userId) => $q->where('assigned_to', $userId))
-            // ESCAPE tường minh vì SQLite (DB test) không có ký tự escape mặc định cho LIKE như MySQL.
             ->when($filters['search'] ?? null, fn (Builder $q, string $search) => $q->whereRaw(
                 "title LIKE ? ESCAPE '!'",
                 ['%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $search).'%'],

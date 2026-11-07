@@ -16,7 +16,6 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->statefulApi();
 
-        // App không có trang login phía server; mặc định Laravel redirect về route('login') sẽ gây lỗi 500 khi client quên header Accept.
         $middleware->redirectGuestsTo(fn () => null);
     })
     ->withExceptions(function (Exceptions $exceptions) {
