@@ -5,10 +5,6 @@ import { listUsers } from '@/api/users'
 import { useAuthStore } from '@/stores/auth'
 import type { User } from '@/types/api'
 
-/**
- * Backend chỉ cho admin gọi GET /api/users và chỉ cho user thường tự giao task cho chính mình,
- * nên user thường dùng luôn thông tin của mình thay vì gọi API (sẽ bị 403).
- */
 export function useAssignees() {
   const auth = useAuthStore()
   const users = ref<User[]>(!auth.isAdmin && auth.user ? [auth.user] : [])

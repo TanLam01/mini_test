@@ -27,7 +27,6 @@ function positiveInt(value: LocationQuery[string] | undefined): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-// Trạng thái lọc/phân trang khởi tạo từ URL để reload hoặc chia sẻ link vẫn giữ nguyên.
 const filters = reactive<{ status: TaskStatus | null; search: string; assignedTo: number | null }>({
   status: isTaskStatus(route.query.status) ? route.query.status : null,
   search: typeof route.query.search === 'string' ? route.query.search : '',
@@ -70,7 +69,6 @@ const assigneeOptions = computed(() =>
 const today = toIsoDate(new Date())
 
 async function load(): Promise<void> {
-  // Huỷ request cũ để response chậm của bộ lọc trước không ghi đè kết quả của bộ lọc mới.
   controller?.abort()
   const current = new AbortController()
   controller = current
@@ -131,7 +129,6 @@ onBeforeUnmount(() => {
   controller?.abort()
 })
 
-// Phải khai báo trước watcher tải dữ liệu: Vue gộp hai lần thay đổi trong cùng tick thành một lần gọi API.
 watch([() => filters.status, () => filters.search, () => filters.assignedTo, perPage], () => {
   page.value = 1
 })

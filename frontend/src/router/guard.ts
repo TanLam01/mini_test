@@ -22,7 +22,6 @@ export function resolveAuthRedirect(
   return null
 }
 
-/** Chỉ chấp nhận path nội bộ để ?redirect= không bị lợi dụng thành open redirect (VD: //evil.com). */
 export function safeRedirectTarget(value: unknown): string {
   return typeof value === 'string' && value.startsWith('/') && !value.startsWith('//')
     ? value

@@ -13,7 +13,6 @@ export const useAuthStore = defineStore('auth', () => {
 
   let pendingInit: Promise<void> | null = null
 
-  /** Khôi phục phiên từ cookie session (nếu còn) khi tải lại trang; chỉ gọi /api/me một lần. */
   function init(): Promise<void> {
     pendingInit ??= authApi
       .me()

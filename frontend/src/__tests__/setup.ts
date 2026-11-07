@@ -1,4 +1,3 @@
-// jsdom không có ResizeObserver, trong khi các component layout/overlay của Vuetify cần nó.
 class ResizeObserverStub {
   observe(): void {}
   unobserve(): void {}

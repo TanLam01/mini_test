@@ -16,7 +16,6 @@ export interface Task {
   status: TaskStatus
   assigned_to: number
   assignee?: User
-  /** YYYY-MM-DD */
   due_date: string | null
   created_at: string | null
   updated_at: string | null

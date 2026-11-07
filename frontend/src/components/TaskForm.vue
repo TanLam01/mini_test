@@ -10,7 +10,6 @@ import { TASK_STATUS_OPTIONS } from '@/utils/taskStatus'
 
 const props = withDefaults(
   defineProps<{
-    /** Có task → chế độ sửa (PUT); không có → chế độ tạo (POST). */
     task?: Task | null
     users: User[]
     defaultAssigneeId?: number | null
