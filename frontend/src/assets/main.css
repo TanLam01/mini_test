@@ -1,0 +1,42 @@
+@layer theme, base, vuetify, components, utilities;
+
+@import 'vuetify/styles' layer(vuetify);
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+@theme {
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.v-application,
+.v-application [class*='text-'] {
+  font-family: var(--font-sans) !important;
+}
+
+.v-application .v-btn {
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.v-table > .v-table__wrapper > table > thead > tr > th {
+  background: rgb(248 250 252);
+  color: rgb(100 116 139) !important;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.v-table > .v-table__wrapper > table > tbody > tr > td {
+  height: 64px !important;
+}
+
+.v-list-item--nav .v-list-item-title {
+  font-weight: 500;
+}

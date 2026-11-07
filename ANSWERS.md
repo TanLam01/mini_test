@@ -19,6 +19,8 @@
    1 + N. Select only the columns the list needs and keep `description` out of list responses if it grows large.
 6. **Caching.** Cache hot, rarely changing reads (user list for the assignee dropdown, counts per status) in Redis
    and invalidate on task writes via model events; add `ETag`/`Cache-Control` so clients can revalidate cheaply.
+   On the client, TanStack Query already caches each page/filter combination and the user list, cancels
+   requests for filters the user has moved away from, and only refetches what a mutation invalidated.
 7. **Scale the data and the runtime.** Archive or partition old `done` tasks, route reads to a MySQL read replica,
    and run PHP with OPcache (+ JIT/Octane if CPU-bound).
 

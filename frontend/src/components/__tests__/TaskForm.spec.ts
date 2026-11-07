@@ -1,16 +1,20 @@
+import { QueryClient, VueQueryPlugin } from '@tanstack/vue-query'
 import { flushPromises, mount } from '@vue/test-utils'
 import { AxiosError, type AxiosResponse } from 'axios'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createVuetify } from 'vuetify'
 
 import * as tasksApi from '@/api/tasks'
-import type { Task, TaskPayload, User } from '@/types/api'
+import type { Paginated, Task, TaskFilters, TaskPayload, User } from '@/types/api'
 
 import TaskForm from '../TaskForm.vue'
 
 vi.mock('@/api/tasks', () => ({
   createTask: vi.fn<(payload: TaskPayload) => Promise<Task>>(),
   updateTask: vi.fn<(id: number, payload: TaskPayload) => Promise<Task>>(),
+  listTasks: vi.fn<(filters: TaskFilters) => Promise<Paginated<Task>>>(),
+  getTask: vi.fn<(id: number) => Promise<Task>>(),
+  deleteTask: vi.fn<(id: number) => Promise<void>>(),
 }))
 
 const users: User[] = [
@@ -32,7 +36,15 @@ const existing: Task = {
 function mountForm(props: Record<string, unknown> = {}) {
   return mount(TaskForm, {
     props: { users, defaultAssigneeId: 1, ...props },
-    global: { plugins: [createVuetify()] },
+    global: {
+      plugins: [
+        createVuetify(),
+        [
+          VueQueryPlugin,
+          { queryClient: new QueryClient({ defaultOptions: { mutations: { retry: false } } }) },
+        ],
+      ],
+    },
   })
 }
 

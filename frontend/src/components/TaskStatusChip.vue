@@ -10,5 +10,8 @@ const meta = computed(() => TASK_STATUS_META[props.status])
 </script>
 
 <template>
-  <v-chip :color="meta.color" size="small" variant="flat" label>{{ meta.label }}</v-chip>
+  <v-chip :color="meta.color" size="small" variant="tonal" class="font-medium">
+    <span class="mr-1.5 inline-block size-1.5 rounded-full bg-current" />
+    {{ meta.label }}
+  </v-chip>
 </template>

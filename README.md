@@ -5,7 +5,7 @@ Small internal task manager.
 | Layer    | Stack                                        |
 |----------|----------------------------------------------|
 | Backend  | Laravel 11, PHP 8.3, MySQL 8, Apache 2.4     |
-| Frontend | Vue 3, Vuetify 3, TypeScript, Vue Router, Pinia, axios (`frontend/`) |
+| Frontend | Vue 3, Vuetify 3, TypeScript, Tailwind CSS 4, TanStack Vue Query, Pinia, Vue Router, axios (`frontend/`) |
 | Auth     | Laravel Sanctum SPA authentication (httpOnly session cookie + CSRF) |
 
 Written answers (performance, security, deployment) are in [ANSWERS.md](ANSWERS.md).
@@ -78,23 +78,44 @@ npm run dev                  # http://localhost:5173
 
 | Route | Access | What it shows |
 |-------|--------|---------------|
-| `/login` | guests only | Email + password form; server errors under the fields |
-| `/tasks` | logged in | Server-side paginated `v-data-table-server`, status filter, debounced title search, assignee filter (admin), colored status chips, create dialog, delete with confirmation |
-| `/tasks/:id` | logged in | Loads the task and edits it with the same `TaskForm` component; clear 403/404 states |
+| `/login` | guests only | Split-screen sign-in; server errors under the fields; one-click demo accounts in dev builds |
+| `/tasks` | logged in | Status summary cards (click to filter), search / status / assignee (admin) filters, server-side paginated `v-data-table-server`, status chips, overdue badges, create dialog, delete with confirmation, stacked rows on mobile |
+| `/tasks/:id` | logged in | Edit form (same `TaskForm`) next to a details panel; delete; dedicated 403/404 states |
 
 Filters and pagination are mirrored in the URL (`/tasks?status=done&search=api&page=2`), so reloads and shared
 links keep the same view.
+
+### UI and state
+
+| Concern | Library | Role |
+|---------|---------|------|
+| Components | Vuetify 3 | Inputs, data table, dialogs, date picker, theme (indigo/slate palette, Inter font) |
+| Layout / spacing | Tailwind CSS v4 | Utility classes for layout and custom blocks (cards, login panel, empty states) |
+| Server state | TanStack Vue Query | Caching, background refetch, request cancellation, cache invalidation after mutations |
+| Client state | Pinia | Current user (`auth`) and snackbar (`notify`) |
+
+- Tailwind runs without its preflight reset, and Vuetify's base stylesheet is imported into a lower cascade layer
+  (`theme, base, vuetify, components, utilities`), so Tailwind spacing utilities are not cancelled by Vuetify's
+  global `* { margin: 0; padding: 0 }` reset.
+- Query keys: `['tasks', 'list', filters]`, `['tasks', 'stats', assignee]`, `['tasks', 'detail', id]`, `['users']`.
+  Creating, updating or deleting a task updates the detail cache and invalidates lists and stats; switching pages
+  keeps the previous page on screen until the next one arrives (`keepPreviousData`).
+- The whole query cache is cleared on login, logout and on a `401`, so one user never sees another user's cached
+  tasks.
 
 ### Structure
 
 ```
 frontend/src
 ├─ api/          axios instance (credentials, XSRF, 419 retry, 401 handling) + one module per resource
+├─ queries/      TanStack Query hooks and query keys for tasks and users
 ├─ types/        API types mirroring the Laravel resources
 ├─ stores/       Pinia: auth (current user), notify (snackbar)
 ├─ router/       routes + auth guard (pure function, unit tested)
 ├─ composables/  useAssignees (admin: GET /api/users, user: only themselves)
-├─ components/   TaskForm (create + edit), TaskStatusChip, ConfirmDialog
+├─ components/   TaskForm (create + edit), TaskStatusChip, UserAvatar, AppLogo, ConfirmDialog
+├─ plugins/      Vuetify theme/defaults, TanStack QueryClient defaults
+├─ assets/       main.css: Tailwind + cascade layers + Vuetify overrides
 └─ views/        LoginView, TasksView, TaskDetailView
 ```
 
