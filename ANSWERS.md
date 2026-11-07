@@ -27,12 +27,12 @@
 | Threat | Mitigation |
 |--------|------------|
 | Credential stuffing / brute force | `throttle:5,1` on `/api/login`; generic "credentials do not match" message (no user enumeration). |
-| Token theft / leakage | Sanctum stores only a SHA-256 hash of each token; tokens expire (24 h) and are revoked on logout; HTTPS only (HSTS) so tokens never travel in clear text; never put tokens in URLs or logs. In the SPA, a token in `localStorage` is readable by any XSS, so the stronger option is Sanctum's cookie-based SPA mode (httpOnly + SameSite cookies + CSRF token). |
+| Auth token / session leakage | **Implemented:** Sanctum SPA mode — no token is ever exposed to JavaScript; the session cookie is `httpOnly` + `SameSite=Lax` (+ `Secure` in production), the session id is regenerated on login (session fixation) and invalidated on logout, sessions expire server-side. HTTPS only (HSTS); never put credentials in URLs or logs. A Bearer token in `localStorage` was rejected because any XSS could read and exfiltrate it. |
 | Broken access control / IDOR (`/api/tasks/{id}` of another user) | Policies on every single-resource action, plus query scoping (`visibleTo`) on lists; covered by feature tests (403 / empty list). |
 | Mass assignment / privilege escalation | `$fillable` whitelists, controllers only use `$request->validated()`, `role` is never mass-assignable, non-admins cannot set `assigned_to` to someone else. |
 | SQL injection | Eloquent / query builder parameter binding everywhere, no string-concatenated SQL; `LIKE` wildcards in user input are escaped. |
-| XSS | The API only returns JSON (`application/json`); Vue escapes interpolated text by default, so never use `v-html` with user data; add a Content-Security-Policy on the SPA host. |
-| CSRF | Not applicable to Bearer tokens (the browser does not attach them automatically). If cookie mode is used, Sanctum's `/sanctum/csrf-cookie` + `X-XSRF-TOKEN` flow handles it. |
+| XSS | httpOnly cookies stop session theft, but injected script could still act as the user inside the page, so XSS itself must be prevented: the API only returns `application/json` (never rendered as HTML); Vue escapes `{{ }}` and bound attributes by default, so never use `v-html` with user data (or sanitize with DOMPurify if rich text is ever needed); no `eval`/runtime template compilation; a strict Content-Security-Policy (`script-src 'self'`, no inline scripts) on the SPA host; `npm audit` for vulnerable packages. |
+| CSRF | Cookies are sent automatically, so CSRF protection is required and enforced: `/sanctum/csrf-cookie` issues `XSRF-TOKEN`, writes must echo it in `X-XSRF-TOKEN` (otherwise 419); `SameSite=Lax` blocks cross-site POSTs; only `SANCTUM_STATEFUL_DOMAINS` get session auth. |
 | Cross-origin abuse | CORS restricted to the SPA origin (`CORS_ALLOWED_ORIGINS`), not `*`. |
 | Information disclosure | `APP_DEBUG=false` in production (debug mode returns stack traces); API Resources expose an explicit field list (no password/remember_token). |
 | Vulnerable dependencies & secrets | `composer audit` / `npm audit` in CI; secrets only in `.env` / the secret store, never committed. Note: Laravel 11 currently has unpatched advisories (see README) — upgrading to Laravel 12+ is the real fix. |
@@ -43,7 +43,9 @@ To be answered together with the frontend part.
 
 ## 6.1 Apache 2.4 & deployment (bonus)
 
-Two virtual hosts: the API and the SPA are separate origins, which matches the CORS + Bearer token design.
+Two virtual hosts on sub-domains of the same site (`tasks.example.com` + `api.tasks.example.com`): Sanctum's cookie
+auth needs the SPA and API to be same-site, with `SESSION_DOMAIN=.tasks.example.com`, `SESSION_SECURE_COOKIE=true`
+and `SANCTUM_STATEFUL_DOMAINS=tasks.example.com`.
 
 ```apache
 # API — Laravel. DocumentRoot must be public/ so .env, vendor/ and storage/ are never web-accessible.
@@ -58,8 +60,6 @@ Two virtual hosts: the API and the SPA are separate origins, which matches the C
         FallbackResource /index.php
     </Directory>
 
-    # With PHP-FPM/CGI the Authorization header is not passed to PHP unless forwarded explicitly; Sanctum needs it.
-    SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1
     # SSLEngine on, SSLCertificateFile …, SSLCertificateKeyFile …
 </VirtualHost>
 
@@ -85,7 +85,7 @@ Two virtual hosts: the API and the SPA are separate origins, which matches the C
 </VirtualHost>
 ```
 
-- Modules: `ssl`, `headers` (Cache-Control rules), `setenvif`; `rewrite` only if using the alternative below.
+- Modules: `ssl`, `headers` (Cache-Control rules); `rewrite` only if using the alternative below.
 - `mod_rewrite` alternative to `FallbackResource` (what Laravel's `public/.htaccess` does):
   `RewriteCond %{REQUEST_FILENAME} !-f` + `RewriteCond %{REQUEST_FILENAME} !-d` + `RewriteRule ^ index.php [L]`
   (`index.html` for the SPA).
